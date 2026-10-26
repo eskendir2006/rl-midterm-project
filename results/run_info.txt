@@ -1,0 +1,36 @@
+mode: full
+python: 3.12.10
+numpy: 2.5.4
+matplotlib: 3.11.2
+platform: Windows-11-10.0.26200-SP0
+processor: AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD
+
+seeds: [0, 1, 2, 3, 4]
+training env seed = s, agent seed = s + 5000, evaluation env seed = s + 10000, evaluation policy rng seed = s + 20000
+training episodes per seed: 20000
+configs: ['sarsa_timer', 'sarsa_no_timer', 'sarsa_fixed_eps']
+
+grid N=5  basket=(2, 2)  SLACK=3  T=100
+rewards: step=-0.05 pick=1.0 deliver=10.0 expire=-5.0
+alpha=0.1  gamma=0.95
+epsilon: linear 1.0 -> 0.05 over first 80% of episodes, then constant (sarsa_fixed_eps: constant 0.1)
+evaluation: every 500 episodes x 100 episodes; final 500 episodes per seed; greedy policy (epsilon=0), no updates
+
+wall-clock seconds per (config, seed) = training + all evaluations:
+  sarsa_timer seed 0: 13.3
+  sarsa_timer seed 1: 13.6
+  sarsa_timer seed 2: 13.1
+  sarsa_timer seed 3: 13.2
+  sarsa_timer seed 4: 13.2
+  sarsa_no_timer seed 0: 13.2
+  sarsa_no_timer seed 1: 13.2
+  sarsa_no_timer seed 2: 13.1
+  sarsa_no_timer seed 3: 13.3
+  sarsa_no_timer seed 4: 13.2
+  sarsa_fixed_eps seed 0: 14.4
+  sarsa_fixed_eps seed 1: 14.5
+  sarsa_fixed_eps seed 2: 14.4
+  sarsa_fixed_eps seed 3: 14.5
+  sarsa_fixed_eps seed 4: 14.4
+experiments total: 206.0 s
+total including figures: 206.9 s

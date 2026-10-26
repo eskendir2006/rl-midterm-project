@@ -1,0 +1,688 @@
+<title>Apple Collector Replay</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: an instrument panel. The grid replay is the hero on the left, the readouts on the right,
+   the "generation" picker runs across the top like a training timeline. */
+:root {
+  --bg: #eef2ed;          /* sage-tinted paper */
+  --panel: #fbfcfa;
+  --ink: #17201a;
+  --muted: #59655c;
+  --line: #d3dbd3;
+  --grid: #c4cec5;
+  --accent: #1d6b4c;      /* orchard green: UI selection and focus */
+  --accent-soft: #d9ebe1;
+  --agent: #2a78d6;       /* same colours as the report figures */
+  --apple: #d63a3a;
+  --basket: #e3a017;
+  --basket-soft: #f6e3b4;
+  --good: #1d6b4c;
+  --bad: #b3261e;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111613; --panel: #19201b; --ink: #e6ece7; --muted: #9ba79f; --line: #2b352e;
+    --grid: #39443c; --accent: #57b98d; --accent-soft: #1f3a2d; --agent: #4c96ee;
+    --apple: #ef5b5b; --basket: #e2a930; --basket-soft: #3e3320; --good: #57b98d; --bad: #f07167;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111613; --panel: #19201b; --ink: #e6ece7; --muted: #9ba79f; --line: #2b352e;
+  --grid: #39443c; --accent: #57b98d; --accent-soft: #1f3a2d; --agent: #4c96ee;
+  --apple: #ef5b5b; --basket: #e2a930; --basket-soft: #3e3320; --good: #57b98d; --bad: #f07167;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.5 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 40px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 20px; }
+
+header { display: grid; gap: 6px; }
+h1 {
+  font: 700 clamp(1.6rem, 3.2vw, 2.2rem)/1.1 var(--display);
+  letter-spacing: -0.01em; margin: 0; text-wrap: balance;
+}
+.lede { margin: 0; color: var(--muted); max-width: 70ch; }
+.lede b { color: var(--ink); font-weight: 600; }
+
+.eyebrow {
+  font: 600 0.72rem/1 var(--body); letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* generation picker */
+.picker { display: grid; gap: 14px; }
+.group { display: grid; gap: 8px; min-width: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.timeline { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 6px; }
+.others { display: flex; flex-wrap: wrap; gap: 6px 22px; }
+button, select { font: inherit; color: inherit; }
+.gen {
+  appearance: none; border: 1px solid var(--line); background: var(--panel);
+  border-radius: 8px; padding: 7px 10px; text-align: left; cursor: pointer;
+  display: grid; gap: 1px; min-width: 0;
+}
+.gen:hover { border-color: var(--accent); }
+.gen[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.gen .n { font: 600 0.9rem/1.2 var(--body); }
+.gen .v { font: 400 0.76rem/1.2 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* main area */
+.main { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 820px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; min-width: 0; }
+
+.stage { display: grid; gap: 12px; }
+.canvas-box { position: relative; width: 100%; max-width: 560px; aspect-ratio: 1; margin: 0 auto; }
+canvas { width: 100%; height: 100%; display: block; }
+
+.transport { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.btn {
+  appearance: none; border: 1px solid var(--line); background: var(--bg); border-radius: 8px;
+  height: 36px; min-width: 36px; padding: 0 10px; cursor: pointer; display: inline-flex;
+  align-items: center; justify-content: center; gap: 6px; font-weight: 500;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); min-width: 84px; }
+.btn svg { width: 14px; height: 14px; fill: currentColor; }
+.scrub { flex: 1 1 160px; min-width: 120px; accent-color: var(--accent); }
+.small { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.85rem; }
+select { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; height: 36px; padding: 0 8px; }
+
+.episodes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ep {
+  appearance: none; border: 1px solid var(--line); background: var(--bg); border-radius: 8px;
+  padding: 4px 9px; cursor: pointer; display: grid; text-align: center; line-height: 1.2;
+}
+.ep .k { font-weight: 600; font-size: 0.82rem; }
+.ep .v { font: 0.72rem var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.ep[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--muted); font-size: 0.82rem; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+
+/* readouts */
+.side { display: grid; gap: 14px; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.stat { display: grid; gap: 2px; }
+.stat .num { font: 600 1.35rem/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.stat .num.neg { color: var(--bad); }
+
+.block { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.tuple { font: 500 0.95rem var(--mono); overflow-wrap: anywhere; }
+.tuple-help { color: var(--muted); font-size: 0.78rem; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pill { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 2px 10px; font-size: 0.82rem; font-weight: 500; border: 1px solid var(--line); }
+.pill.good { color: var(--good); border-color: var(--good); }
+.pill.bad { color: var(--bad); border-color: var(--bad); }
+.pill.warn { color: var(--ink); background: var(--basket-soft); border-color: var(--basket); }
+
+.q { display: grid; gap: 4px; }
+.qrow { display: grid; grid-template-columns: 52px minmax(0, 1fr) 64px; gap: 8px; align-items: center; font-size: 0.85rem; }
+.qrow .name { font-family: var(--mono); }
+.qrow .bar { height: 10px; background: var(--bg); border-radius: 3px; position: relative; overflow: hidden; }
+.qrow .bar i { position: absolute; top: 0; bottom: 0; left: 0; background: var(--grid); border-radius: 3px; }
+.qrow.best .bar i { background: var(--accent); }
+.qrow.best .name { font-weight: 600; color: var(--accent); }
+.qrow .val { font-family: var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+.note { color: var(--muted); font-size: 0.85rem; margin: 0; }
+
+.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 0.85rem; max-height: 168px; overflow-y: auto; }
+.log li { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; gap: 8px; }
+.log .t { font-family: var(--mono); color: var(--muted); }
+.log .r { font-family: var(--mono); font-weight: 500; }
+.log .r.pos { color: var(--good); }
+.log .r.neg { color: var(--bad); }
+
+footer { color: var(--muted); font-size: 0.82rem; max-width: 80ch; }
+footer code { font-family: var(--mono); font-size: 0.8rem; }
+@media (max-width: 480px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">CSCI3235 · Apple Collector gridworld · tabular SARSA</span>
+    <h1>Apple Collector Replay</h1>
+    <p class="lede">Watch the same SARSA agent at different points in training. Each snapshot is the agent's
+      Q-table frozen after <b>N training episodes</b>, playing greedily (ε = 0, no learning) on the same
+      evaluation episodes used in the report. Pick up the apple (+1), bring it to the basket (+10), and don't
+      let the timer run out (−5). Every step costs −0.05.</p>
+  </header>
+
+  <section class="picker" aria-label="Choose an agent">
+    <div class="group">
+      <span class="eyebrow">SARSA (timer), seed 0: training progress</span>
+      <div class="timeline" id="timeline"></div>
+    </div>
+    <div class="others" id="others"></div>
+  </section>
+
+  <section class="main">
+    <div class="card stage">
+      <div class="canvas-box"><canvas id="board" aria-label="Grid replay"></canvas></div>
+      <div class="transport">
+        <button class="btn" id="back" title="Step back (←)" aria-label="Step back"><svg viewBox="0 0 16 16"><path d="M3 2h2v12H3zM14 2v12L6 8z"/></svg></button>
+        <button class="btn primary" id="play" title="Play / pause (space)">Play</button>
+        <button class="btn" id="fwd" title="Step forward (→)" aria-label="Step forward"><svg viewBox="0 0 16 16"><path d="M11 2h2v12h-2zM2 2v12l8-6z"/></svg></button>
+        <input class="scrub" id="scrub" type="range" min="0" max="100" value="0" aria-label="Step">
+        <label class="small" for="speed">Speed
+          <select id="speed">
+            <option value="2">2 steps/s</option>
+            <option value="4" selected>4 steps/s</option>
+            <option value="8">8 steps/s</option>
+            <option value="16">16 steps/s</option>
+          </select>
+        </label>
+      </div>
+      <div class="episodes" id="episodes"><span class="small">Episode</span></div>
+      <div class="row">
+        <label class="small" for="fullpath"><input type="checkbox" id="fullpath"> Show the whole path so far</label>
+      </div>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--agent)"></i>agent</span>
+        <span><i class="dot" style="background:var(--apple)"></i>apple (ring = time left)</span>
+        <span><i class="dot" style="background:var(--basket)"></i>basket</span>
+        <span><i class="dot" style="background:var(--agent);box-shadow:0 0 0 3px var(--apple)"></i>carrying</span>
+      </div>
+    </div>
+
+    <div class="card side">
+      <div>
+        <span class="eyebrow" id="who">Agent</span>
+      </div>
+      <div class="stats">
+        <div class="stat"><span class="eyebrow">Step</span><span class="num" id="s-step">0</span></div>
+        <div class="stat"><span class="eyebrow">Return</span><span class="num" id="s-ret">0.00</span></div>
+        <div class="stat"><span class="eyebrow">Delivered</span><span class="num" id="s-del">0</span></div>
+        <div class="stat"><span class="eyebrow">Expired</span><span class="num" id="s-exp">0</span></div>
+      </div>
+
+      <div class="block">
+        <span class="eyebrow">State the agent sees</span>
+        <span class="tuple" id="tuple"></span>
+        <span class="tuple-help">(agent_x, agent_y, apple_x, apple_y, carrying, timer)</span>
+        <div class="row" id="last"></div>
+      </div>
+
+      <div class="block">
+        <span class="eyebrow">Next decision: Q(state, action)</span>
+        <div class="q" id="q"></div>
+        <p class="note" id="qnote" hidden></p>
+      </div>
+
+      <div class="block">
+        <span class="eyebrow">Events this episode</span>
+        <ul class="log" id="log"></ul>
+        <p class="note" id="lognote">No rewards or penalties yet.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Data: <code>results/replays.json</code>, written by <code>python replay.py</code>. The recorded episodes are the
+    first evaluation episodes from the experiments (evaluation environment seed = seed + 10000), and the script checks
+    that their returns equal what <code>evaluate()</code> measures. The grid has y pointing up, like the environment.
+  </footer>
+</div>
+
+<script>
+const DATA = /*__REPLAY_DATA__*/null;
+const ACTIONS = DATA.actions;
+const MAX_TIMER = 11;
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const $ = (id) => document.getElementById(id);
+const board = $("board");
+const ctx = board.getContext("2d");
+
+// ---------- playback state ----------
+let agentIdx = DATA.agents.findIndex((a) => a.id === "sarsa_20000");
+if (agentIdx < 0) agentIdx = 0;
+let episodeIdx = 0;
+let t = 0;               // number of steps applied (0..100)
+let playing = false;
+let stepStart = 0;       // time the current step animation started
+let pathMode = false;
+
+const agent = () => DATA.agents[agentIdx];
+const episode = () => agent().episodes[episodeIdx];
+const nSteps = () => episode().steps.length;
+
+// state after t steps: [ax, ay, px, py, carrying, timer]
+function stateAt(k) {
+  const ep = episode();
+  return k === 0 ? ep.start : ep.steps[k - 1];
+}
+
+// running totals for the current episode
+let totals = [];
+function computeTotals() {
+  totals = [{ ret: 0, del: 0, exp: 0 }];
+  for (const s of episode().steps) {
+    const prev = totals[totals.length - 1];
+    totals.push({
+      ret: prev.ret + s[7],
+      del: prev.del + (s[8].includes("d") ? 1 : 0),
+      exp: prev.exp + (s[8].includes("e") ? 1 : 0),
+    });
+  }
+}
+
+// ---------- colours from CSS tokens ----------
+let C = {};
+function readColors() {
+  const cs = getComputedStyle(document.documentElement);
+  for (const k of ["panel", "ink", "muted", "line", "grid", "agent", "apple", "basket", "basket-soft", "good", "bad", "bg"]) {
+    C[k] = cs.getPropertyValue("--" + k).trim();
+  }
+}
+
+// ---------- canvas sizing ----------
+let size = 0, dpr = 1;
+function resize() {
+  const box = board.parentElement.getBoundingClientRect();
+  dpr = window.devicePixelRatio || 1;
+  size = Math.max(200, Math.floor(box.width));
+  board.width = size * dpr;
+  board.height = size * dpr;
+  draw();
+}
+
+// grid helpers: cell centre in pixels, y up
+const PAD = 0.04;
+function cellSize() { return (size * (1 - 2 * PAD)) / 5; }
+function cx(x) { return size * PAD + (x + 0.5) * cellSize(); }
+function cy(y) { return size * PAD + (4 - y + 0.5) * cellSize(); }
+
+function draw() {
+  if (!size) return;
+  const now = performance.now();
+  const dur = 1000 / Number($("speed").value);
+  const p = reduceMotion || !playing ? 1 : Math.min(1, (now - stepStart) / (dur * 0.7));
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, size, size);
+  const cs = cellSize();
+  const x0 = size * PAD;
+
+  // cells
+  ctx.fillStyle = C.panel;
+  ctx.fillRect(x0, x0, cs * 5, cs * 5);
+  // basket
+  ctx.fillStyle = C["basket-soft"];
+  roundRect(cx(2) - cs * 0.44, cy(2) - cs * 0.44, cs * 0.88, cs * 0.88, cs * 0.12);
+  ctx.fill();
+  ctx.strokeStyle = C.basket;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = C.muted;
+  ctx.font = `500 ${Math.max(10, cs * 0.14)}px ${getComputedStyle(document.body).fontFamily}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText("basket", cx(2), cy(2) + cs * 0.36);
+
+  // grid lines
+  ctx.strokeStyle = C.grid;
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    line(x0 + i * cs, x0, x0 + i * cs, x0 + 5 * cs);
+    line(x0, x0 + i * cs, x0 + 5 * cs, x0 + i * cs);
+  }
+  // axis labels
+  ctx.fillStyle = C.muted;
+  ctx.font = `400 ${Math.max(9, cs * 0.11)}px ${getComputedStyle(document.body).fontFamily}`;
+  for (let i = 0; i < 5; i++) {
+    ctx.textAlign = "center";
+    ctx.fillText(String(i), cx(i), x0 + 5 * cs + Math.max(10, size * PAD * 0.75));
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(i), x0 - 4, cy(i));
+    ctx.textBaseline = "alphabetic";
+  }
+
+  const cur = stateAt(t);
+  const prev = stateAt(Math.max(0, t - 1));
+  const ax = prev[0] + (cur[0] - prev[0]) * ease(p);
+  const ay = prev[1] + (cur[1] - prev[1]) * ease(p);
+
+  // path trail
+  const from = pathMode ? 0 : Math.max(0, t - 12);
+  if (t - from >= 1) {
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (let k = from + 1; k <= t; k++) {
+      const a = stateAt(k - 1), b = stateAt(k);
+      const age = t - k;
+      const alpha = pathMode ? 0.55 : Math.max(0.08, 0.6 - age * 0.045);
+      ctx.strokeStyle = withAlpha(C.agent, alpha);
+      ctx.lineWidth = Math.max(2, cs * 0.06);
+      const bx = k === t ? ax : b[0], by = k === t ? ay : b[1];
+      line(cx(a[0]), cy(a[1]), cx(bx), cy(by));
+    }
+  }
+
+  const step = t > 0 ? episode().steps[t - 1] : null;
+  const ev = step ? step[8] : "";
+
+  // expired apple: fading cross at the old apple position
+  if (ev.includes("e")) {
+    const fade = playing ? 1 - p : 0.6;
+    drawCross(cx(prev[2]), cy(prev[3]), cs * 0.18, withAlpha(C.bad, fade));
+  }
+  // delivery: ring pulse at the basket
+  if (ev.includes("d")) {
+    const r = cs * (0.3 + 0.25 * p);
+    ctx.strokeStyle = withAlpha(C.basket, playing ? 1 - p * 0.8 : 0.7);
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx(2), cy(2), r, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  // apple on the ground with its timer ring
+  if (!cur[4]) {
+    const px = cx(cur[2]), py = cy(cur[3]);
+    const rr = cs * 0.3;
+    ctx.strokeStyle = C.line;
+    ctx.lineWidth = Math.max(3, cs * 0.06);
+    ctx.setLineDash(agent().sees_timer ? [] : [4, 4]);
+    ctx.beginPath(); ctx.arc(px, py, rr, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = cur[5] <= 2 ? C.bad : C.muted;
+    ctx.beginPath(); ctx.arc(px, py, rr, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * cur[5]) / MAX_TIMER); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = C.apple;
+    ctx.beginPath(); ctx.arc(px, py, cs * 0.17, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = C.ink;
+    ctx.font = `600 ${Math.max(10, cs * 0.13)}px ${getComputedStyle(document.body).fontFamily}`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(cur[5]), px + rr + 3, py - rr * 0.7);
+    ctx.textBaseline = "alphabetic";
+  }
+
+  // agent
+  const gx = cx(ax), gy = cy(ay);
+  ctx.fillStyle = C.agent;
+  ctx.beginPath(); ctx.arc(gx, gy, cs * 0.22, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = cur[4] ? C.apple : C.panel;
+  ctx.lineWidth = cur[4] ? Math.max(4, cs * 0.07) : 2;
+  ctx.stroke();
+
+  // floating reward text
+  if (step && (ev || p < 1)) {
+    const parts = [];
+    if (ev.includes("p")) parts.push(["+1", C.good]);
+    if (ev.includes("d")) parts.push(["+10", C.good]);
+    if (ev.includes("e")) parts.push(["−5", C.bad]);
+    const alpha = playing ? 1 - p * 0.6 : 1;
+    ctx.font = `700 ${Math.max(12, cs * 0.18)}px ${getComputedStyle(document.body).fontFamily}`;
+    ctx.textAlign = "center";
+    parts.forEach(([txt, col], i) => {
+      ctx.fillStyle = withAlpha(col, alpha);
+      ctx.fillText(txt, gx + (i - (parts.length - 1) / 2) * cs * 0.5, gy - cs * (0.32 + 0.12 * p));
+    });
+  }
+}
+
+function line(x1, y1, x2, y2) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function drawCross(x, y, r, col) {
+  ctx.strokeStyle = col; ctx.lineWidth = 3;
+  line(x - r, y - r, x + r, y + r); line(x - r, y + r, x + r, y - r);
+}
+function ease(p) { return p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; }
+function withAlpha(hex, a) {
+  const h = hex.replace("#", "");
+  const n = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${Math.max(0, Math.min(1, a))})`;
+}
+
+// ---------- readouts ----------
+function fmt(v) { return (v < 0 ? "−" : "") + Math.abs(v).toFixed(2); }
+
+function visibleState(s) {
+  if (s[4]) return [s[0], s[1], s[0], s[1], 1, 0];
+  return [s[0], s[1], s[2], s[3], 0, agent().sees_timer ? s[5] : 0];
+}
+
+function stuckSince() {
+  // the state has not changed for at least 5 steps
+  if (t < 5) return null;
+  const key = (s) => s.slice(0, 6).join(",");
+  const now = key(stateAt(t));
+  let k = t;
+  while (k > 0 && key(stateAt(k - 1)) === now) k--;
+  return t - k >= 5 ? k : null;
+}
+
+function updatePanel() {
+  const a = agent();
+  const tot = totals[t];
+  $("who").textContent = a.group + " · " + a.label;
+  $("s-step").textContent = `${t}/${nSteps()}`;
+  $("s-ret").textContent = fmt(tot.ret);
+  $("s-ret").classList.toggle("neg", tot.ret < 0);
+  $("s-del").textContent = tot.del;
+  $("s-exp").textContent = tot.exp;
+  $("scrub").max = nSteps();
+  $("scrub").value = t;
+
+  const s = stateAt(t);
+  $("tuple").textContent = "(" + visibleState(s).join(", ") + ")";
+
+  // last step
+  const last = $("last");
+  last.textContent = "";
+  if (t > 0) {
+    const st = episode().steps[t - 1];
+    last.append(pill(`last action: ${ACTIONS[st[6]]}`), pill(`reward ${st[7] > 0 ? "+" : ""}${fmt(st[7])}`, st[7] > 0 ? "good" : st[7] < -1 ? "bad" : ""));
+  } else {
+    last.append(pill("episode start"));
+  }
+  if (!a.sees_timer && !s[4]) last.append(pill(`real timer ${s[5]} (hidden from this agent)`, "warn"));
+  const since = stuckSince();
+  if (since !== null) last.append(pill(`stuck since step ${since}: repeating “${ACTIONS[episode().steps[t - 1][6]]}”`, "bad"));
+
+  // Q-values for the next decision
+  const qBox = $("q");
+  const note = $("qnote");
+  qBox.textContent = "";
+  const ep = episode();
+  if (ep.q && t < nSteps()) {
+    note.hidden = true;
+    const q = ep.q[t];
+    const chosen = ep.steps[t][6];
+    const lo = Math.min(...q, 0), hi = Math.max(...q, 0.001);
+    const best = Math.max(...q);
+    q.forEach((v, i) => {
+      const row = document.createElement("div");
+      row.className = "qrow" + (i === chosen ? " best" : "");
+      const w = ((v - lo) / (hi - lo || 1)) * 100;
+      row.innerHTML = `<span class="name">${ACTIONS[i]}</span><span class="bar"><i style="width:${w.toFixed(1)}%"></i></span><span class="val">${v.toFixed(2)}</span>`;
+      if (v === best && i !== chosen) row.title = "tied for the highest value";
+      qBox.append(row);
+    });
+  } else {
+    note.hidden = false;
+    note.textContent = !ep.q
+      ? (a.id === "random" ? "The Random agent has no Q-table. It picks one of the 6 actions uniformly."
+                           : "The Greedy rule has no Q-table. It walks to the apple (x first, then y), takes it, walks to the basket and drops it.")
+      : "Episode finished (time limit T = 100).";
+  }
+
+  // event log
+  const log = $("log");
+  log.textContent = "";
+  const steps = episode().steps;
+  for (let k = 0; k < t; k++) {
+    const ev = steps[k][8];
+    if (!ev) continue;
+    const add = (txt, r, cls) => {
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="t">step ${k + 1}</span><span>${txt}</span><span class="r ${cls}">${r}</span>`;
+      log.prepend(li);
+    };
+    if (ev.includes("p")) add("picked up the apple", "+1", "pos");
+    if (ev.includes("d")) add("delivered to the basket", "+10", "pos");
+    if (ev.includes("e")) add("apple expired", "−5", "neg");
+  }
+  $("lognote").hidden = log.children.length > 0;
+}
+
+function pill(text, kind) {
+  const el = document.createElement("span");
+  el.className = "pill" + (kind ? " " + kind : "");
+  el.textContent = text;
+  return el;
+}
+
+// ---------- pickers ----------
+function meanReturn(a) {
+  const r = a.episodes.map((e) => e.return);
+  return r.reduce((x, y) => x + y, 0) / r.length;
+}
+
+function buildPickers() {
+  const tl = $("timeline"), others = $("others");
+  const groups = {};
+  DATA.agents.forEach((a, i) => {
+    const b = document.createElement("button");
+    b.className = "gen";
+    b.dataset.idx = i;
+    b.innerHTML = `<span class="n">${a.label}</span><span class="v">avg ${fmt(meanReturn(a))}</span>`;
+    b.title = `Average return over the ${a.episodes.length} recorded episodes`;
+    b.addEventListener("click", () => selectAgent(i));
+    if (a.group === "SARSA (timer), seed 0") tl.append(b);
+    else {
+      if (!groups[a.group]) {
+        const g = document.createElement("div");
+        g.className = "group";
+        g.innerHTML = `<span class="eyebrow">${a.group}</span><div class="chips"></div>`;
+        others.append(g);
+        groups[a.group] = g.querySelector(".chips");
+      }
+      groups[a.group].append(b);
+    }
+  });
+}
+
+function buildEpisodes() {
+  const box = $("episodes");
+  box.querySelectorAll(".ep").forEach((e) => e.remove());
+  agent().episodes.forEach((e, i) => {
+    const b = document.createElement("button");
+    b.className = "ep";
+    b.setAttribute("aria-pressed", i === episodeIdx);
+    b.innerHTML = `<span class="k">${i + 1}</span><span class="v">${fmt(e.return)}</span>`;
+    b.title = `Episode ${i + 1}: return ${fmt(e.return)}`;
+    b.addEventListener("click", () => selectEpisode(i));
+    box.append(b);
+  });
+}
+
+function markSelected() {
+  document.querySelectorAll(".gen").forEach((b) => b.setAttribute("aria-pressed", Number(b.dataset.idx) === agentIdx));
+}
+
+function selectAgent(i) {
+  agentIdx = i;
+  episodeIdx = Math.min(episodeIdx, agent().episodes.length - 1);
+  markSelected();
+  buildEpisodes();
+  restart();
+}
+function selectEpisode(i) {
+  episodeIdx = i;
+  buildEpisodes();
+  restart();
+}
+function restart() {
+  computeTotals();
+  t = 0;
+  stepStart = performance.now();
+  updatePanel();
+  draw();
+}
+
+// ---------- transport ----------
+function setPlaying(on) {
+  playing = on;
+  $("play").textContent = on ? "Pause" : "Play";
+  if (on) {
+    if (t >= nSteps()) { t = 0; }
+    stepStart = performance.now();
+    requestAnimationFrame(tick);
+  }
+  updatePanel();
+  draw();
+}
+function stepTo(k) {
+  t = Math.max(0, Math.min(nSteps(), k));
+  stepStart = performance.now();
+  updatePanel();
+  draw();
+}
+function tick(now) {
+  if (!playing) return;
+  const dur = 1000 / Number($("speed").value);
+  if (now - stepStart >= dur) {
+    if (t >= nSteps()) { setPlaying(false); return; }
+    t += 1;
+    stepStart = now;
+    updatePanel();
+    if (t >= nSteps()) { draw(); setPlaying(false); return; }
+  }
+  draw();
+  requestAnimationFrame(tick);
+}
+
+$("play").addEventListener("click", () => setPlaying(!playing));
+$("back").addEventListener("click", () => { setPlaying(false); stepTo(t - 1); });
+$("fwd").addEventListener("click", () => { setPlaying(false); stepTo(t + 1); });
+$("scrub").addEventListener("input", (e) => { setPlaying(false); stepTo(Number(e.target.value)); });
+$("fullpath").addEventListener("change", (e) => { pathMode = e.target.checked; draw(); });
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("input, select")) return;
+  if (e.key === " ") { e.preventDefault(); setPlaying(!playing); }
+  if (e.key === "ArrowRight") { setPlaying(false); stepTo(t + 1); }
+  if (e.key === "ArrowLeft") { setPlaying(false); stepTo(t - 1); }
+});
+
+// theme changes: re-read the colour tokens
+readColors();
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readColors(); draw(); });
+new MutationObserver(() => { readColors(); draw(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+new ResizeObserver(resize).observe(board.parentElement);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+
+buildPickers();
+markSelected();
+buildEpisodes();
+computeTotals();
+// open on a meaningful frame: partway through an episode of the trained agent
+t = Math.min(14, nSteps());
+updatePanel();
+resize();
+</script>

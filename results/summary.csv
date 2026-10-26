@@ -1,0 +1,6 @@
+agent,display_name,mean_return,std_return,mean_delivered,std_delivered,mean_expired,std_expired,n_seeds,eval_episodes_per_seed,frac_stuck,std_frac_stuck
+random,Random,-72.254,0.201,0.052,0.008,13.605,0.036,5,500,0.0004,0.0009
+greedy,Greedy (fixed rule),146.799,0.503,13.754,0.047,0.0,0.0,5,500,0.0,0.0
+sarsa_timer,SARSA (timer),145.394,2.608,13.626,0.238,0.0,0.0,5,500,0.0,0.0
+sarsa_no_timer,SARSA (no timer),120.8,35.772,11.564,3.272,0.399,0.461,5,500,0.1552,0.347
+sarsa_fixed_eps,"SARSA (timer, fixed eps=0.1)",141.267,2.634,13.252,0.239,0.0,0.0,5,500,0.0,0.0
