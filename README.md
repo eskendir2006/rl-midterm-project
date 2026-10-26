@@ -83,6 +83,7 @@ Running `run_all.py` twice gives an identical `summary.csv` and `per_seed.csv`.
 | `viewer_template.html` | Page template for the replay viewer (`replay.py` pastes the recorded data into it) |
 | `requirements.txt` | Pinned numpy and matplotlib versions |
 | `report/report.md` | Report draft (figures linked from `../results/`) |
+| `report/build_pdf.py` | Exports `report.md` to `report.pdf` (A4, rendered formulas) with headless Chrome or Edge: `pip install markdown`, then `python report/build_pdf.py` |
 
 ## What appears in `results/` after a run
 
